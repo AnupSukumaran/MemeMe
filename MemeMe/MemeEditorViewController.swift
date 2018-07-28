@@ -35,7 +35,8 @@ class MemeEditorViewController: UIViewController {
         super.viewDidLoad()
         
         settingTextFieldDelegates()
-        textFieldAttributesAndTexts()
+        textFieldAttributesAndTexts(topTextField, with: "TOP")
+        textFieldAttributesAndTexts(bottomTextField, with: "BOTTOM")
         
     }
     
@@ -63,16 +64,12 @@ class MemeEditorViewController: UIViewController {
         self.bottomTextField.delegate = self
     }
     
-    func textFieldAttributesAndTexts() {
+    func textFieldAttributesAndTexts(_ textField: UITextField, with defaultText: String) {
         
-        topTextField.defaultTextAttributes = memeTextAttributes
-        bottomTextField.defaultTextAttributes = memeTextAttributes
-        
-        topTextField.text = "TOP"
-        topTextField.textAlignment = .center
-        bottomTextField.text = "BOTTOM"
-        bottomTextField.textAlignment = .center
-        
+        textField.defaultTextAttributes = memeTextAttributes
+        textField.textAlignment = .center
+        textField.text = defaultText
+        textField.clearsOnBeginEditing = true
     }
     
     func ShareButtonStatusCheck() {
@@ -120,44 +117,55 @@ class MemeEditorViewController: UIViewController {
     func save() {
         let meme = Meme(topText: topTextField.text!, bottomText: bottomTextField.text!, originalImage: imagePickerView.image!, memedImage: memedImage!)
         
-        print("memeModel = \(meme!)")
+        print("Meme = \(meme!)")
+        
+        let imageData = UIImagePNGRepresentation(self.memedImage!)
+        let compressedImag = UIImage(data: imageData!)
+        UIImageWriteToSavedPhotosAlbum(compressedImag!, nil, nil, nil)
     }
     
     func generateMemedImage() -> UIImage {
         
-        self.navigationController?.setNavigationBarHidden(true, animated: false)
-        UIApplication.shared.isStatusBarHidden = true
-        self.toolBar.isHidden = true
-        
+        navigationStatusBarAndToolBarHidden(isHidden: true)
         
         UIGraphicsBeginImageContext( self.view.frame.size)
         self.view.drawHierarchy(in: self.view.frame, afterScreenUpdates: true)
         let memedImage:UIImage = UIGraphicsGetImageFromCurrentImageContext()!
         UIGraphicsEndImageContext()
         
-        self.navigationController?.setNavigationBarHidden(false, animated: false)
-        UIApplication.shared.isStatusBarHidden = false
-        self.toolBar.isHidden = false
+        navigationStatusBarAndToolBarHidden(isHidden: false)
+        
         
         return memedImage
         
     }
     
-    //MARK: Actions Methods
-
-    @IBAction func pickingImage(_ sender: Any) {
+    func navigationStatusBarAndToolBarHidden(isHidden: Bool) {
+        self.navigationController?.setNavigationBarHidden(isHidden, animated: false)
+        UIApplication.shared.isStatusBarHidden = isHidden
+        self.toolBar.isHidden = isHidden
+    }
+    
+    func pickAnImage(from source: UIImagePickerControllerSourceType) {
         let imagePicker = UIImagePickerController()
         imagePicker.delegate = self
-        imagePicker.sourceType = .photoLibrary
+        imagePicker.sourceType = source
         present(imagePicker, animated: true, completion: nil)
     }
     
-    @IBAction func camerImagePicker(_ sender: Any) {
-        let imagePicker = UIImagePickerController()
-        imagePicker.delegate = self
-        imagePicker.sourceType = .camera
-        present(imagePicker, animated: true, completion: nil)
+    //MARK: Actions Methods
+
+    @IBAction func pickingImage(_ sender: Any) {
+        
+        pickAnImage(from: .photoLibrary)
     }
+    
+    @IBAction func camerImagePicker(_ sender: Any) {
+
+        pickAnImage(from: .camera)
+    }
+    
+    
     
     @IBAction func shareButton(_ sender: Any) {
         print("Shared")
@@ -169,44 +177,59 @@ class MemeEditorViewController: UIViewController {
         
         let actingVC = UIActivityViewController(activityItems: objects , applicationActivities: nil)
         
+        actingVC.excludedActivityTypes = [UIActivityType.saveToCameraRoll]
+      
+       
         actingVC.completionWithItemsHandler = {
+            
             activity, success, items, error in
+            
             
             let alert = UIAlertController(title: "Save The Meme", message: "Do you like to save this meme?", preferredStyle: .alert)
             
-            let action1 = UIAlertAction(title: "Save", style: .default, handler: { (action) in
-                
-                self.memedImage = self.generateMemedImage()
-                self.save()
-                
-                
-            })
+
             
-            let action2 = UIAlertAction(title: "No", style: .destructive, handler: nil)
+            let action1 = UIAlertAction(title: "Save", style: .default) { (action:UIAlertAction) in
+                
+                if success {
+                    self.memedImage = self.generateMemedImage()
+                    self.save()
+                }
+        
+            }
+            
+            let action2 = UIAlertAction(title: "Cancel", style: .cancel) { (action:UIAlertAction) in
+                print("You've pressed cancel")
+                
+            }
+            
             
             alert.addAction(action1)
             alert.addAction(action2)
-            
+      
             self.present(alert, animated: true, completion: nil)
             
         }
+        
         self.present(actingVC, animated: true, completion: nil)
     }
+    
+    
     
   
 }
 
 extension MemeEditorViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
-    
-    
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        
         if let image = info[UIImagePickerControllerOriginalImage] as? UIImage {
+            
             imagePickerView.contentMode = .scaleAspectFit
             imagePickerView.clipsToBounds = true
-            
             imagePickerView.image = image
             shareButton.isEnabled = true
+            
         }
         
         dismiss(animated: true, completion: nil)
@@ -222,26 +245,34 @@ extension MemeEditorViewController: UITextFieldDelegate {
     
     func textFieldDidBeginEditing(_ textField: UITextField) {
         
-        textField.text = ""
-       
+        if textField.clearsOnBeginEditing {
+            textField.text = ""
+            textField.clearsOnBeginEditing = false
+        }
+ 
     }
     
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         
-        if textField == topTextField {
-            if !textField.hasText {
-                textField.text = "TOP"
-            }
-        }
         
-        if textField == bottomTextField {
-            if !textField.hasText {
-                textField.text = "BOTTOM"
-            }
-        }
+        textFieldconditions(textField: topTextField, with: "TOP", clearOnBool: true)
         
-        textField.resignFirstResponder()
+        textFieldconditions(textField: bottomTextField, with: "BOTTOM", clearOnBool: true)
+        
+
         return true
     }
     
+    func textFieldconditions(textField: UITextField, with defaultTest: String, clearOnBool: Bool) {
+        
+        if !textField.hasText {
+            textField.text = defaultTest
+            textField.clearsOnBeginEditing = clearOnBool
+        }
+        textField.resignFirstResponder()
+       
+    }
+    
 }
+
+
